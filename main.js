@@ -29,6 +29,16 @@ function gameLoop() {
     }
 
     requestAnimationFrame(gameLoop);
+    
+
+    // 在 main.js 的 gameLoop 函式內執行
+    const linksUI = document.getElementById('author-links');
+
+    if (gameState === 'start' || gameState === 'gameover') {
+        linksUI.style.display = 'flex'; // 暫停/結束畫面時顯示
+    } else {
+        linksUI.style.display = 'none'; // 遊戲進行中隱藏
+    }
 }
 
 // --- 遊戲邏輯驅動 ---
