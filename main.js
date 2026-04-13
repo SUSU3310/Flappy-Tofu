@@ -95,6 +95,29 @@ const handleAction = () => {
     }
 };
 
+function resizeCanvas() {
+    const overlay = document.getElementById('orientation-overlay');
+    
+    // 檢查是否為手機且處於直屏
+    if (window.innerHeight > window.innerWidth) {
+        overlay.style.display = 'flex'; // 顯示轉向提示
+    } else {
+        overlay.style.display = 'none'; // 隱藏提示
+    }
+
+    // 邏輯畫布大小 (使用固定比例避免拉伸)
+    // 這裡我們設定一個基準解析度，例如 1280x720
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // 重新初始化物理參數 (因為它們依賴 canvas.height)
+    if (typeof initBird === 'function') initBird();
+}
+
+// 監聽轉向與縮放
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', resizeCanvas);
+
 window.addEventListener('keydown', (e) => { if (e.code === 'Space') handleAction(); });
 window.addEventListener('touchstart', (e) => { e.preventDefault(); handleAction(); }, { passive: false });
 
