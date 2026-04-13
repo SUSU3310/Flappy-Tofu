@@ -36,21 +36,22 @@ let pipes = [];
 let frame = 0;
 let bgOffset = 0;
 
-// 接收來自 main.js 的 isMobile 參數
+// game.js
+
 function initBird(isMobile = false) {
-    // 手機版讓鳥靠左一點 (15%)，電腦版維持原位
-    bird.x = isMobile ? canvas.width * 0.15 : 50;
+    // 如果是手機(直屏)，讓小鳥離左邊緣遠一點，通常 20% 是比較舒服的反應距離
+    // 如果是電腦(橫屏)，則維持固定位置或 10%
+    bird.x = isMobile ? canvas.width * 0.2 : canvas.width * 0.1;
+    
     bird.y = canvas.height / 2;
     bird.width = 40;
     bird.height = 30;
-    
-    // 物理數值微調
+
     if (isMobile) {
-        // 手機直屏通常較長，稍微調輕重力，增加緩衝感
+        // 手機高度對齊後，垂直空間很大，重力感要稍微輕一點
         bird.gravity = canvas.height * 0.0005; 
         bird.lift = canvas.height * -0.01;
     } else {
-        // 電腦版維持你原本滿意的數值
         bird.gravity = canvas.height * 0.0006;
         bird.lift = canvas.height * -0.012;
     }
@@ -122,14 +123,17 @@ function createPipe() {
     }
 }
 
+// 修改背景繪製邏輯，確保背景圖也能跟著放大對齊
 function drawBackground() {
+    // 以高度為基準縮放
     const bgScale = canvas.height / bgImg.height;
     const bgScaledWidth = bgImg.width * bgScale;
-    // 緩衝張數增加到 2，確保左右填滿無縫隙
-    const numBgNeeded = Math.ceil(canvas.width / bgScaledWidth) + 2;
+    
+    // 計算需要幾張圖才能填滿寬度（直屏通常 1-2 張就夠，但電腦版需要多張）
+    const numBgNeeded = Math.ceil(canvas.width / bgScaledWidth) + 1;
     
     if (gameState === 'play') {
-        bgOffset -= 1.5; // 稍微調快滾動速度增加動感
+        bgOffset -= 1.5; 
         if (bgOffset <= -bgScaledWidth) bgOffset = 0;
     }
     
@@ -163,7 +167,7 @@ function showGameOverScreen() {
     const restartText = isTouchDevice ? "點擊畫面再次挑戰" : "按下 [空白鍵] 再次挑戰";
 
     ctx.fillStyle = "white";
-    ctx.font = "bold 20px Arial";
+    ctx.font = "bold 30px Arial";
     ctx.textAlign = "center";
     ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 20);
     ctx.font = "20px Arial";

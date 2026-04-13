@@ -1,18 +1,13 @@
 // --- 視窗縮放處理 ---
-
 function resizeCanvas() {
-    // 固定邏輯解析度 (例如 1280x720)
-    // 這樣你的 bird.gravity, bird.lift 就不會因為手機高度不同而變難玩
-    const targetWidth = 1280;
-    const targetHeight = 720;
-    
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
+    // 讓畫布的內部解析度直接等於瀏覽器的寬高
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
-    // 判斷是否為手機 (主要影響點擊提示文字)
     const isMobile = window.innerWidth < 768 || ('ontouchstart' in window);
 
     if (typeof initBird === 'function') {
+        // 傳入 isMobile 來動態調整手感
         initBird(isMobile); 
     }
 }
