@@ -25,10 +25,24 @@ let pipes = [];
 let frame = 0;
 let bgOffset = 0;
 
-function initBird() {
+// 接收來自 main.js 的 isMobile 參數
+function initBird(isMobile = false) {
+    // 手機版讓鳥靠左一點 (15%)，電腦版維持原位
+    bird.x = isMobile ? canvas.width * 0.15 : 50;
     bird.y = canvas.height / 2;
-    bird.gravity = canvas.height * 0.0006;
-    bird.lift = canvas.height * -0.012;
+    bird.width = 40;
+    bird.height = 30;
+    
+    // 物理數值微調
+    if (isMobile) {
+        // 手機直屏通常較長，稍微調輕重力，增加緩衝感
+        bird.gravity = canvas.height * 0.0005; 
+        bird.lift = canvas.height * -0.01;
+    } else {
+        // 電腦版維持你原本滿意的數值
+        bird.gravity = canvas.height * 0.0006;
+        bird.lift = canvas.height * -0.012;
+    }
     bird.velocity = 0;
 }
 
@@ -36,63 +50,58 @@ function resetGame() {
     score = 0;
     currentChapter = 1;
     loadChapterAssets(currentChapter);
-    initBird();
+    
+    // 重新呼叫時也判斷一次裝置
+    const isMobile = window.innerWidth < 768 || ('ontouchstart' in window);
+    initBird(isMobile);
+    
     pipes = [];
     frame = 0;
 }
 
 function createPipe() {
-    const pWidth = 60;
+    const isMobile = window.innerWidth < 768 || ('ontouchstart' in window);
+    const pWidth = 80;
     const minH = 100; 
     const maxH = canvas.height * 0.4; 
-    const gap = 180; // 雙石頭模式的間距
+    
+    // 手機版 gap 給大一點點，增加通過率
+    const gap = isMobile ? canvas.height * 0.22 : 180; 
 
-    // 隨機決定生成類型：0 為上下同時，1 為中間單個
     const spawnType = Math.random() < 0.5 ? 0 : 1;
 
-    // 輔助函式：根據位置過濾圖片
-    // position: 'top', 'bottom', 'middle'
     function getRandomImgFor(position) {
-        let pool = [0, 1, 2, 3]; // 代表 stone1, 2, 3, 4
-        
+        let pool = [0, 1, 2, 3];
         if (position === 'top') {
-            // 上方不能出現 stone4 (索引 3)
             pool = pool.filter(index => index !== 3);
         } else if (position === 'bottom') {
-            // 下方不能出現 stone2 (索引 1)
             pool = pool.filter(index => index !== 1);
         } else if (position === 'middle') {
-            // 中間不能出現 stone2 (索引 1) 和 stone4 (索引 3)
             pool = pool.filter(index => index !== 1 && index !== 3);
         }
-        
         const randomIndex = pool[Math.floor(Math.random() * pool.length)];
         return stoneImages[randomIndex];
     }
 
     if (spawnType === 0) {
-        // --- 1. 上下同時有石頭 ---
         const topImg = getRandomImgFor('top');
         const bottomImg = getRandomImgFor('bottom');
         const topH = Math.random() * (maxH - minH) + minH;
         
-        // 上方石頭
         pipes.push({
             x: canvas.width, y: 0, width: pWidth, h: topH,
             img: topImg, type: 'top', passed: false
         });
 
-        // 下方石頭
         pipes.push({
             x: canvas.width, y: topH + gap, width: pWidth,
             h: canvas.height - (topH + gap),
             img: bottomImg, type: 'bottom', passed: false
         });
-
     } else {
-        // --- 2. 中間有石頭 ---
         const middleImg = getRandomImgFor('middle');
         const middleH = 150;
+        // 確保中間石頭不會太靠邊緣
         const middleY = Math.random() * (canvas.height - middleH - 200) + 100;
 
         pipes.push({
@@ -102,14 +111,14 @@ function createPipe() {
     }
 }
 
-// --- 繪製函式集 ---
 function drawBackground() {
     const bgScale = canvas.height / bgImg.height;
     const bgScaledWidth = bgImg.width * bgScale;
-    const numBgNeeded = Math.ceil(canvas.width / bgScaledWidth) + 1;
+    // 緩衝張數增加到 2，確保左右填滿無縫隙
+    const numBgNeeded = Math.ceil(canvas.width / bgScaledWidth) + 2;
     
     if (gameState === 'play') {
-        bgOffset -= 1;
+        bgOffset -= 1.5; // 稍微調快滾動速度增加動感
         if (bgOffset <= -bgScaledWidth) bgOffset = 0;
     }
     
@@ -118,18 +127,16 @@ function drawBackground() {
     }
 }
 
+// ... showStartScreen, showGameOverScreen, drawUI 保持原樣 ...
 function showStartScreen() {
-    // 繪製靜止的小鳥
     ctx.fillStyle = "yellow";
-    ctx.fillRect(bird.x, canvas.height / 2, bird.width, bird.height);
+    ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
 
     ctx.fillStyle = "white";
     ctx.font = "bold 30px Arial";
     ctx.textAlign = "center";
     ctx.fillText("FLAPPY Tofu", canvas.width / 2, canvas.height / 2 - 50);
 
-    // --- 動態偵測裝置顯示文字 ---
-    // 判斷是否為觸控裝置
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const startText = isTouchDevice ? "點擊畫面開始遊戲" : "按下 [空白鍵] 開始遊戲";
 

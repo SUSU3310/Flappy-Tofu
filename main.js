@@ -2,21 +2,42 @@
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    initBird(); // 縮放時重置鳥的位置避免跑版
+
+    // 判斷是否為手機 (寬度小於 768px 或 具有觸控功能)
+    const isMobile = window.innerWidth < 768 || ('ontouchstart' in window);
+
+    // 傳送裝置資訊給 initBird，讓 game.js 決定小鳥的物理數值
+    if (typeof initBird === 'function') {
+        initBird(isMobile); 
+    }
 }
+
+// 監聽各種縮放與轉向事件
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => {
+    setTimeout(resizeCanvas, 200); // 延遲一下確保寬高已更新
+});
+window.addEventListener('load', resizeCanvas);
 
 // --- 遊戲主循環 ---
 function gameLoop() {
-    // 檢查資源
     if (!bgImg.complete) {
         requestAnimationFrame(gameLoop);
         return;
     }
 
-    // 清除畫布並繪製背景
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawBackground();
+
+    // 連結 UI 的顯示控制
+    const linksUI = document.getElementById('author-links');
+    if (linksUI) {
+        if (gameState === 'start' || gameState === 'gameover') {
+            linksUI.style.display = 'flex';
+        } else {
+            linksUI.style.display = 'none';
+        }
+    }
 
     if (gameState === 'start') {
         showStartScreen();
@@ -29,16 +50,6 @@ function gameLoop() {
     }
 
     requestAnimationFrame(gameLoop);
-    
-
-    // 在 main.js 的 gameLoop 函式內執行
-    const linksUI = document.getElementById('author-links');
-
-    if (gameState === 'start' || gameState === 'gameover') {
-        linksUI.style.display = 'flex'; // 暫停/結束畫面時顯示
-    } else {
-        linksUI.style.display = 'none'; // 遊戲進行中隱藏
-    }
 }
 
 // --- 遊戲邏輯驅動 ---
@@ -46,45 +57,56 @@ function playGameLogic() {
     bird.velocity += bird.gravity;
     bird.y += bird.velocity;
     
-    // 繪製小鳥
+    // 繪製小鳥 (這裡可以保留你的黃色方塊或改為圖片)
     ctx.fillStyle = "yellow";
     ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
 
+    // 水管生成速度，如果是手機版也可以考慮稍微放慢 (例如 100)
     if (frame % 90 === 0) createPipe();
 
     for (let i = pipes.length - 1; i >= 0; i--) {
         let p = pipes[i];
-        p.x -= 4;
+        p.x -= 4; // 移動速度
 
-        // 無論是 type === 'top', 'bottom', 或 'middle'，都用同一種繪製方式
         ctx.drawImage(p.img, p.x, p.y, p.width, p.h);
-        // ------------------------------------------------------------------
 
+        // 計分邏輯 (優化：只針對 top 或 middle 計分，避免一組水管加兩次分)
         if (!p.passed && bird.x > p.x + p.width) {
             p.passed = true;
-            score++;
-            if (score % 10 === 0) {
-                // 這裡被註解掉了，需要切換章節時可以解開
-                // currentChapter = (currentChapter % 3) + 1; 
-                // loadChapterAssets(currentChapter);
+            if (p.type === 'top' || p.type === 'middle') {
+                score++;
+                // 每 10 分切換章節
+                // if (score % 10 === 0) {
+                //     currentChapter = (currentChapter % 3) + 1; 
+                //     loadChapterAssets(currentChapter);
+                // }
             }
         }
 
+        // 碰撞偵測
         if (bird.x < p.x + p.width && bird.x + bird.width > p.x &&
             bird.y < p.y + p.h && bird.y + bird.height > p.y) {
             gameState = 'gameover';
         }
+        
+        // 移除超出畫面水管
         if (p.x + p.width < 0) pipes.splice(i, 1);
     }
 
-    if (bird.y + bird.height > canvas.height || bird.y < 0) gameState = 'gameover';
+    // 掉出畫布或飛太高判定
+    if (bird.y + bird.height > canvas.height || bird.y < 0) {
+        gameState = 'gameover';
+    }
 
     drawUI();
     frame++;
 }
 
 // --- 控制器整合 ---
-const handleAction = () => {
+const handleAction = (e) => {
+    // 防止點擊連結時觸發遊戲動作
+    if (e && e.target.tagName === 'A' || (e && e.target.closest('a'))) return;
+
     if (gameState === 'start') {
         gameState = 'play';
     } else if (gameState === 'play') {
@@ -95,31 +117,23 @@ const handleAction = () => {
     }
 };
 
-function resizeCanvas() {
-    const overlay = document.getElementById('orientation-overlay');
-    
-    // 檢查是否為手機且處於直屏
-    if (window.innerHeight > window.innerWidth) {
-        overlay.style.display = 'flex'; // 顯示轉向提示
-    } else {
-        overlay.style.display = 'none'; // 隱藏提示
+// 鍵盤監聽
+window.addEventListener('keydown', (e) => { 
+    if (e.code === 'Space') handleAction(e); 
+});
+
+// 觸控監聽：如果是點擊連結則不阻止預設行為
+window.addEventListener('touchstart', (e) => { 
+    if (e.target.tagName !== 'A' && !e.target.closest('a')) {
+        e.preventDefault(); 
+        handleAction(e); 
     }
+}, { passive: false });
 
-    // 邏輯畫布大小 (使用固定比例避免拉伸)
-    // 這裡我們設定一個基準解析度，例如 1280x720
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    // 重新初始化物理參數 (因為它們依賴 canvas.height)
-    if (typeof initBird === 'function') initBird();
-}
-
-// 監聽轉向與縮放
-window.addEventListener('resize', resizeCanvas);
-window.addEventListener('orientationchange', resizeCanvas);
-
-window.addEventListener('keydown', (e) => { if (e.code === 'Space') handleAction(); });
-window.addEventListener('touchstart', (e) => { e.preventDefault(); handleAction(); }, { passive: false });
+// 滑鼠點擊支援
+window.addEventListener('mousedown', (e) => {
+    handleAction(e);
+});
 
 // --- 啟動遊戲 ---
 resizeCanvas();
