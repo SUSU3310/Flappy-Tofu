@@ -1,12 +1,17 @@
 // --- 視窗縮放處理 ---
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
 
-    // 判斷是否為手機 (寬度小於 768px 或 具有觸控功能)
+function resizeCanvas() {
+    // 固定邏輯解析度 (例如 1280x720)
+    // 這樣你的 bird.gravity, bird.lift 就不會因為手機高度不同而變難玩
+    const targetWidth = 1280;
+    const targetHeight = 720;
+    
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    // 判斷是否為手機 (主要影響點擊提示文字)
     const isMobile = window.innerWidth < 768 || ('ontouchstart' in window);
 
-    // 傳送裝置資訊給 initBird，讓 game.js 決定小鳥的物理數值
     if (typeof initBird === 'function') {
         initBird(isMobile); 
     }

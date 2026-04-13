@@ -8,19 +8,40 @@ body, html {
     background-color: #000;
 }
 
-/* 修正後的 Canvas：解決拉伸感 */
-canvas {
-    display: block;
-    width: 100vw;
-    height: 100vh;
-    /* 核心調整：讓內容自動填滿視窗，但在手機直屏下會自動截取中間，不會壓扁圖片 */
-    object-fit: cover; 
-    
-    /* 置中對齊 */
-    position: absolute;
+/* 1. 全螢幕模糊背景 */
+#blur-bg {
+    position: fixed;
     top: 0;
     left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('./assets/ch1/background.png'); /* 預設背景 */
+    background-size: cover;
+    background-position: center;
+    filter: blur(15px) brightness(0.6); /* 模糊並調暗，不搶戲 */
+    z-index: -1;
+    transform: scale(1.1); /* 稍微放大防止邊緣留白 */
+}
+
+/* 2. 強制 16:9 遊戲畫布 */
+canvas {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    
+    /* 核心：在手機上寬度 100%，高度根據 16:9 自動計算 */
+    width: 100vw;
+    height: calc(100vw * 9 / 16);
+    
+    /* 如果是寬螢幕電腦，則高度 100%，寬度根據 16:9 計算 */
+    max-height: 100vh;
+    max-width: calc(100vh * 20 / 9);
+    
     background: #000;
+    box-shadow: 0 0 50px rgba(0,0,0,0.8); /* 給遊戲畫面加一點陰影深度 */
+    z-index: 1;
 }
 
 /* UI 層次容器 (覆蓋在 Canvas 之上) */

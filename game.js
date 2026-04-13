@@ -8,9 +8,20 @@ const bgImg = new Image();
 const stoneImages = [new Image(), new Image(), new Image(), new Image()];
 let showTitleTimer = 0;
 
+// game.js 中的 loadChapterAssets
+
 function loadChapterAssets(chapter) {
     const path = `./assets/ch${chapter}/`;
-    bgImg.src = `${path}background.png`;
+    const bgUrl = `${path}background.png`;
+    
+    bgImg.src = bgUrl;
+    
+    // 同步更新 HTML 中的模糊背景
+    const blurBg = document.getElementById('blur-bg');
+    if (blurBg) {
+        blurBg.style.backgroundImage = `url('${bgUrl}')`;
+    }
+
     for (let i = 0; i < 4; i++) {
         stoneImages[i].src = `${path}stone${i + 1}.png`;
     }
@@ -135,7 +146,7 @@ function showStartScreen() {
     ctx.fillStyle = "white";
     ctx.font = "bold 30px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("FLAPPY Tofu", canvas.width / 2, canvas.height / 2 - 50);
+    ctx.fillText("FLAPPY TOFU", canvas.width / 2, canvas.height / 2 - 50);
 
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const startText = isTouchDevice ? "點擊畫面開始遊戲" : "按下 [空白鍵] 開始遊戲";
@@ -152,10 +163,10 @@ function showGameOverScreen() {
     const restartText = isTouchDevice ? "點擊畫面再次挑戰" : "按下 [空白鍵] 再次挑戰";
 
     ctx.fillStyle = "white";
-    ctx.font = "bold 40px Arial";
+    ctx.font = "bold 20px Arial";
     ctx.textAlign = "center";
     ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 20);
-    ctx.font = "24px Arial";
+    ctx.font = "20px Arial";
     ctx.fillText(`得分: ${score}`, canvas.width / 2, canvas.height / 2 + 30);
     ctx.fillText(restartText, canvas.width / 2, canvas.height / 2 + 80);
 }
