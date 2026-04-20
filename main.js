@@ -31,6 +31,11 @@ function gameLoop() {
         linksUI.style.display = (gameState === 'start' || gameState === 'gameover') ? 'flex' : 'none';
     }
 
+    const controlsContainer = document.getElementById('controls-container');
+    if (controlsContainer) {
+        controlsContainer.style.display = (gameState === 'start' || gameState === 'gameover') ? 'flex' : 'none';
+    }
+
     if (gameState === 'start') {
         showStartScreen();
     } 
@@ -45,6 +50,23 @@ function gameLoop() {
 }
 
 // --- 多邊形碰撞檢測 (SAT) ---
+
+// 初始化背景音量
+window.addEventListener('load', () => {
+    const bgm = document.getElementById('bgm');
+    const volumeSlider = document.getElementById('bgm-volume');
+    if (bgm && volumeSlider) {
+        bgm.volume = volumeSlider.value;
+        volumeSlider.addEventListener('input', (e) => {
+            bgm.volume = e.target.value;
+        });
+        
+        // 點擊音量條時不要觸發跳躍
+        volumeSlider.addEventListener('mousedown', (e) => e.stopPropagation());
+        volumeSlider.addEventListener('touchstart', (e) => e.stopPropagation());
+    }
+});
+
 function getAxes(poly) {
     let axes = [];
     for (let i = 0; i < poly.length; i++) {
@@ -335,13 +357,13 @@ window.addEventListener('touchstart', (e) => {
         // 在手機上開始後，防止點擊造成頁面捲動
         // 唯獨在設定面板中不要擋掉預設輸入行為
         if (gameState === 'play') e.preventDefault(); 
-        if (e.target.closest('#settings-modal') || e.target.closest('#settings-btn')) return;
+        if (e.target.closest('#settings-modal') || e.target.closest('#controls-container')) return;
         handleAction(e); 
     }
 }, { passive: false });
 
 window.addEventListener('mousedown', (e) => {
-    if (e.target.closest('#settings-modal') || e.target.closest('#settings-btn')) return;
+    if (e.target.closest('#settings-modal') || e.target.closest('#controls-container')) return;
     handleAction(e);
 });
 
