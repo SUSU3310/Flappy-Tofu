@@ -174,10 +174,21 @@ function showStartScreen() {
         ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
     }
 
+    // 取得歷史最高紀錄
+    let bestScore = parseInt(localStorage.getItem('flappyTofuBestScore')) || 0;
+
     ctx.fillStyle = "white";
-    ctx.font = "bold 30px Arial";
+    ctx.font = "bold 40px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("FLAPPY TOFU", canvas.width / 2, canvas.height / 2 - 50);
+    ctx.fillText("FLAPPY TOFU", canvas.width / 2, canvas.height / 2 - 60);
+
+    if (bestScore > 0) {
+        ctx.fillStyle = "gold";
+        ctx.font = "20px Arial";
+        ctx.fillText(`最高紀錄: ${bestScore}`, canvas.width / 2, canvas.height / 2 - 20);
+    }
+
+    ctx.fillStyle = "white";
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const startText = isTouchDevice ? "點擊畫面開始遊戲" : "按下 [空白鍵] 開始遊戲";
     ctx.font = "20px Arial";
@@ -189,12 +200,25 @@ function showGameOverScreen() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const restartText = isTouchDevice ? "點擊畫面再次挑戰" : "按下 [空白鍵] 再次挑戰";
+    
+    // 讀取與更新最高歷史紀錄
+    let bestScore = parseInt(localStorage.getItem('flappyTofuBestScore')) || 0;
+    if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem('flappyTofuBestScore', bestScore);
+    }
+
     ctx.fillStyle = "white";
     ctx.font = "bold 30px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 20);
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 50);
+    ctx.font = "24px Arial";
+    ctx.fillText(`本次得分: ${score}`, canvas.width / 2, canvas.height / 2 - 10);
+    ctx.fillStyle = "gold";
+    ctx.fillText(`最高紀錄: ${bestScore}`, canvas.width / 2, canvas.height / 2 + 30);
+    
+    ctx.fillStyle = "white";
     ctx.font = "20px Arial";
-    ctx.fillText(`得分: ${score}`, canvas.width / 2, canvas.height / 2 + 30);
     ctx.fillText(restartText, canvas.width / 2, canvas.height / 2 + 80);
 }
 
