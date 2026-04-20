@@ -143,3 +143,45 @@ canvas {
 #save-settings-btn { background: #4CAF50; color: white; }
 #reset-settings-btn { background: #f44336; color: white; }
 #close-settings-btn { background: transparent; color: white; }
+
+/* 手機版排版放大設定 */
+@media (max-width: 768px) {
+    #settings-btn {
+        bottom: 30px;
+        right: 20px;
+        padding: 15px 25px;
+        font-size: 20px;
+        border-width: 3px;
+    }
+
+    .modal-content {
+        width: 95%;
+        padding: 20px 15px;
+        max-height: 90vh;
+    }
+
+    .modal-content h2 {
+        font-size: 28px;
+        padding-bottom: 15px;
+    }
+
+    .setting-group {
+        font-size: 18px !important;
+        margin-top: 25px !important;
+    }
+
+    .setting-row label {
+        font-size: 18px;
+    }
+
+    .setting-row input {
+        width: 80px;
+        padding: 8px 10px;
+        font-size: 18px;
+    }
+
+    .modal-actions button {
+        padding: 15px 0;
+        font-size: 18px;
+    }
+}
