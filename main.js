@@ -5,7 +5,7 @@ function resizeCanvas() {
 
     const isMobile = window.innerWidth < 768 || ('ontouchstart' in window);
 
-    if (typeof initBird === 'function') {
+    if (typeof initBird === 'function' && typeof gameSettings !== 'undefined' && gameSettings) {
         initBird(isMobile); 
     }
 }
@@ -176,15 +176,16 @@ function playGameLogic() {
         ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
     }
 
-    // 2. 每隔 90 幀產生一組新水管
-    if (frame % 90 === 0) createPipe();
+    // 2. 每隔一定幀數產生一組新水管
+    const settings = gameSettings[`ch${currentChapter}`];
+    if (frame % settings.pipeSpawnFrames === 0) createPipe();
 
     // 3. 遍歷並處理所有水管
     for (let i = pipes.length - 1; i >= 0; i--) {
         let p = pipes[i];
         
-        // 移動水管：根據畫面寬度比例移動，確保不同裝置體感速度一致
-        p.x -= (canvas.width * 0.005); 
+        // 移動水管：根據畫面寬度與設定的速度比例移動
+        p.x -= (canvas.width * settings.speedMultiplier); 
 
         // --- A. 視覺繪製：等比例不拉伸 ---
         if (p.img.complete && p.img.width > 0) {
@@ -271,8 +272,9 @@ function playGameLogic() {
             }
         }
         
-        // --- F. 清除超出螢幕的水管以節省效能 ---
-        if (p.x + p.width < 0) {
+        // --- F. 清除超出螢幕邊界的水管以節省效能 ---
+        // 同樣向左延展回收區域，使得過寬的圖片完全隱形後才被 splice 刪除，避免憑空消失
+        if (p.x + p.width + canvas.height * 0.3 < 0) {
             pipes.splice(i, 1);
         }
     }
@@ -320,6 +322,32 @@ window.addEventListener('mousedown', (e) => {
 });
 
 // --- 啟動遊戲 ---
-resizeCanvas();
-loadChapterAssets();
-gameLoop();
+async function initGameSettings() {
+    try {
+        // 加上時間戳避免瀏覽器快取舊的 json 檔案
+        const res = await fetch('./setting.json?t=' + new Date().getTime());
+        gameSettings = await res.json();
+    } catch(e) {
+        console.error("無法載入 setting.json", e);
+        // 提供預設設定以防萬一
+        gameSettings = {
+            "ch1": {
+                "speedMultiplier": 0.005,
+                "bgSpeed": 1.5,
+                "pipeSpawnFrames": 60,
+                "pipeWidthRatio": 0.08,
+                "pipeMinHeightRatio": 0.1,
+                "pipeMaxHeightRatio": 0.4,
+                "middlePipeHeightRatio": 0.2,
+                "mobile": { "gravityRatio": 0.0005, "liftRatio": -0.01, "pipeGapRatio": 0.22 },
+                "desktop": { "gravityRatio": 0.0006, "liftRatio": -0.012, "pipeGapRatio": 0.25 }
+            }
+        };
+    }
+    
+    resizeCanvas();
+    loadChapterAssets();
+    gameLoop();
+}
+
+initGameSettings();

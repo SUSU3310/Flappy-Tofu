@@ -1,6 +1,9 @@
 // --- 畫布基礎與素材管理 (保持原樣) ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+let currentChapter = 1;
+let gameSettings = null; // 存放所有的全域設定
+
 const bgImg = new Image();
 const stoneImages = [new Image(), new Image(), new Image(), new Image()];
 const birdImg = new Image();
@@ -55,14 +58,12 @@ function initBird(isMobile = false) {
         bird.width = bird.height * 1.2; // 預設比例
     }
 
-    // 重力與跳躍力 (維持之前相對高度的設定)
-    if (isMobile) {
-        bird.gravity = canvas.height * 0.0005; 
-        bird.lift = canvas.height * -0.01;
-    } else {
-        bird.gravity = canvas.height * 0.0006;
-        bird.lift = canvas.height * -0.012;
-    }
+    // 重力與跳躍力 (從設定檔讀取比例)
+    const settings = gameSettings[`ch${currentChapter}`];
+    const platform = isMobile ? settings.mobile : settings.desktop;
+
+    bird.gravity = canvas.height * platform.gravityRatio;
+    bird.lift = canvas.height * platform.liftRatio;
     bird.velocity = 0;
 }
 
@@ -77,11 +78,16 @@ function resetGame() {
 
 // --- 核心修改：產生水管與碰撞參數 ---
 function createPipe() {
-    const pWidth = canvas.height * 0.08; 
-    const minH = canvas.height * 0.1; 
-    const maxH = canvas.height * 0.4; 
-    const isMobile = window.innerWidth < 768 || ('ontouchstart' in window);
-    const gap = isMobile ? canvas.height * 0.22 : canvas.height * 0.25; 
+    const settings = gameSettings[`ch${currentChapter}`];
+    const platform = window.innerWidth < 768 || ('ontouchstart' in window) ? settings.mobile : settings.desktop;
+
+    const pWidth = canvas.height * settings.pipeWidthRatio; 
+    const minH = canvas.height * settings.pipeMinHeightRatio; 
+    const maxH = canvas.height * settings.pipeMaxHeightRatio; 
+    const gap = canvas.height * platform.pipeGapRatio; 
+    
+    // 設定一個足夠在畫面外的生成點 (避免圖片寬度超過 hitbox 導致憑空飛入)
+    const startX = canvas.width + canvas.height * 0.3;
 
     const spawnType = Math.random() < 0.5 ? 0 : 1;
 
@@ -108,7 +114,7 @@ function createPipe() {
 
         // 上石頭
         pipes.push({
-            x: canvas.width, y: 0, width: pWidth, h: topH,
+            x: startX, y: 0, width: pWidth, h: topH,
             img: tImg.img, // 綁定圖片
             shape: tImg.shape, // 綁定碰撞形狀
             type: 'top', passed: false,
@@ -117,7 +123,7 @@ function createPipe() {
 
         // 下石頭
         pipes.push({
-            x: canvas.width, y: topH + gap, width: pWidth, h: bottomH,
+            x: startX, y: topH + gap, width: pWidth, h: bottomH,
             img: bImg.img, // 綁定圖片
             shape: bImg.shape, // 綁定碰撞形狀
             type: 'bottom', passed: false,
@@ -126,11 +132,11 @@ function createPipe() {
     } else {
         // 中間石頭
         const mImgObj = getImgFromPool('middle');
-        const middleH = canvas.height * 0.2; 
+        const middleH = canvas.height * settings.middlePipeHeightRatio; 
         const middleY = Math.random() * (canvas.height - middleH - (canvas.height * 0.2)) + (canvas.height * 0.1);
 
         pipes.push({
-            x: canvas.width, y: middleY, width: pWidth, h: middleH,
+            x: startX, y: middleY, width: pWidth, h: middleH,
             img: mImgObj.img, // 綁定圖片
             shape: mImgObj.shape, // 綁定碰撞形狀
             type: 'middle', passed: false,
@@ -145,7 +151,8 @@ function drawBackground() {
     const bgScaledWidth = bgImg.width * bgScale;
     
     if (gameState === 'play') {
-        bgOffset -= 1.5; 
+        const settings = gameSettings[`ch${currentChapter}`];
+        bgOffset -= settings.bgSpeed; 
         if (bgOffset <= -bgScaledWidth) {
             bgOffset = 0;
         }

@@ -1,0 +1,22 @@
+
+{
+    "ch1": {
+        "speedMultiplier": 0.005,      
+        "bgSpeed": 1.5,                
+        "pipeSpawnFrames": 60,         
+        "pipeWidthRatio": 0.08,        
+        "pipeMinHeightRatio": 0.1,     
+        "pipeMaxHeightRatio": 0.4,     
+        "middlePipeHeightRatio": 0.2,  
+        "mobile": {
+            "gravityRatio": 0.0005,   
+            "liftRatio": -0.01,       
+            "pipeGapRatio": 0.22      
+        },
+        "desktop": {
+            "gravityRatio": 0.0006,   
+            "liftRatio": -0.012,      
+            "pipeGapRatio": 0.25       
+        }
+    }
+}
