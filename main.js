@@ -307,11 +307,20 @@ function playGameLogic() {
 const handleAction = (e) => {
     if (e && (e.target.tagName === 'A' || e.target.closest('a'))) return;
 
+    const bgm = document.getElementById('bgm');
+
     if (gameState === 'start') {
         gameState = 'play';
+        if (bgm) {
+            bgm.currentTime = 0; // 重頭播放
+            bgm.play().catch(e => console.error('BGM play failed:', e));
+        }
     } else if (gameState === 'play') {
         bird.velocity = bird.lift;
     } else if (gameState === 'gameover') {
+        if (bgm) {
+            bgm.pause();
+        }
         resetGame();
         gameState = 'start';
     }
