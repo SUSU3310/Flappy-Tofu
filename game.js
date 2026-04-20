@@ -1,42 +1,31 @@
 // --- 畫布基礎與素材管理 (保持原樣) ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-let currentChapter = 1;
 const bgImg = new Image();
 const stoneImages = [new Image(), new Image(), new Image(), new Image()];
-let showTitleTimer = 0;
 const birdImg = new Image();
 birdImg.src = './assets/player.png'; // 請確保路徑正確
-const nextBgImg = new Image(); // 預備下一關的背景
-let isTransitioningBg = false; // 是否正在等待背景切換
 let currentStonePool = []; 
 
-function loadChapterAssets(chapter) {
-    const path = `./assets/ch${chapter}/`;
+function loadChapterAssets() {
+    const path = `./assets/ch1/`;
     const bgUrl = `${path}background.png`;
     
-    // 1. 背景處理：這會立刻換背景圖。
-    // 如果想要背景也平滑過渡，建議保留舊背景直到它滾動出螢幕（稍後討論）
-    if (gameState === 'play') {
-        // 如果正在遊戲中，將新背景載入到「備用」圖片
-        nextBgImg.src = bgUrl;
-        isTransitioningBg = true; 
-    } else {
-        // 初始狀態或重置時，直接換掉主背景
-        bgImg.src = bgUrl;
-    }
+    // 背景處理：直接換主背景
+    bgImg.src = bgUrl;
     
     const blurBg = document.getElementById('blur-bg');
     if (blurBg) blurBg.style.backgroundImage = `url('${bgUrl}')`;
 
-    // 2. 關鍵修改：更新「當前資源池」，但不影響已經在畫面上的水管
+    // 更新「當前資源池」
     currentStonePool = [];
     for (let i = 0; i < 4; i++) {
         const img = new Image();
         img.src = `${path}stone${i + 1}.png`;
-        currentStonePool.push(img);
+        // 設定圖片對應的形狀: stone1(0), stone3(2) 為菱形; stone2(1), stone4(3) 為三角形
+        const shape = (i === 0 || i === 2) ? 'diamond' : 'triangle';
+        currentStonePool.push({ img: img, shape: shape });
     }
-    showTitleTimer = 100; 
 }
 
 // --- 遊戲變數 ---
@@ -79,8 +68,7 @@ function initBird(isMobile = false) {
 
 function resetGame() {
     score = 0;
-    currentChapter = 1;
-    loadChapterAssets(currentChapter);
+    loadChapterAssets();
     const isMobile = window.innerWidth < 768 || ('ontouchstart' in window);
     initBird(isMobile);
     pipes = [];
@@ -121,30 +109,32 @@ function createPipe() {
         // 上石頭
         pipes.push({
             x: canvas.width, y: 0, width: pWidth, h: topH,
-            img: tImg, // 綁定圖片
+            img: tImg.img, // 綁定圖片
+            shape: tImg.shape, // 綁定碰撞形狀
             type: 'top', passed: false,
-            hitW: pWidth * 0.6, hitH: topH * 0.8
+            hitW: pWidth, hitH: topH // 碰撞直接根據圖片原始繪製區域來產生多邊形
         });
 
         // 下石頭
         pipes.push({
             x: canvas.width, y: topH + gap, width: pWidth, h: bottomH,
-            img: bImg, // 綁定圖片
+            img: bImg.img, // 綁定圖片
+            shape: bImg.shape, // 綁定碰撞形狀
             type: 'bottom', passed: false,
-            hitW: pWidth * 0.6, hitH: bottomH * 0.8,
-            hitYOffset: bottomH * 0.2
+            hitW: pWidth, hitH: bottomH
         });
     } else {
         // 中間石頭
-        const mImg = getImgFromPool('middle');
+        const mImgObj = getImgFromPool('middle');
         const middleH = canvas.height * 0.2; 
         const middleY = Math.random() * (canvas.height - middleH - (canvas.height * 0.2)) + (canvas.height * 0.1);
 
         pipes.push({
             x: canvas.width, y: middleY, width: pWidth, h: middleH,
-            img: mImg, // 綁定圖片
+            img: mImgObj.img, // 綁定圖片
+            shape: mImgObj.shape, // 綁定碰撞形狀
             type: 'middle', passed: false,
-            hitW: pWidth * 0.6, hitH: middleH * 0.8
+            hitW: pWidth, hitH: middleH
         });
     }
 }
@@ -158,19 +148,12 @@ function drawBackground() {
         bgOffset -= 1.5; 
         if (bgOffset <= -bgScaledWidth) {
             bgOffset = 0;
-            // 當舊背景完全滾出螢幕的一輪後，正式替換
-            if (isTransitioningBg && nextBgImg.complete) {
-                bgImg.src = nextBgImg.src;
-                isTransitioningBg = false;
-            }
         }
     }
     
     // 繪製邏輯
     const numBgNeeded = Math.ceil(canvas.width / bgScaledWidth) + 1;
     for (let i = 0; i < numBgNeeded; i++) {
-        // 如果正在過渡，且這是新的一張圖，可以考慮更複雜的雙圖交替繪製
-        // 簡單做法：等下一輪循環再換圖，這樣視覺上會是「下一條背景」變色
         ctx.drawImage(bgImg, (i * bgScaledWidth) + bgOffset, 0, bgScaledWidth, canvas.height);
     }
 }
@@ -215,12 +198,4 @@ function drawUI() {
     ctx.shadowColor = "black";
     ctx.fillText(`Score: ${score}`, 20, 40);
     ctx.shadowBlur = 0;
-
-    if (showTitleTimer > 0) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${showTitleTimer / 100})`;
-        ctx.font = "bold 40px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(`Chapter ${currentChapter}`, canvas.width / 2, canvas.height / 2);
-        showTitleTimer--;
-    }
 }

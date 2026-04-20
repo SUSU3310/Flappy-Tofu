@@ -44,65 +44,104 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// --- 像素級碰撞檢測 ---
-function isPixelCollision(birdParams, pipeParams) {
-    // 取得兩者的 AABB (框框) 交集區域 (Broad Phase)
-    const left = Math.max(birdParams.x, pipeParams.x);
-    const right = Math.min(birdParams.x + birdParams.w, pipeParams.x + pipeParams.w);
-    const top = Math.max(birdParams.y, pipeParams.y);
-    const bottom = Math.min(birdParams.y + birdParams.h, pipeParams.y + pipeParams.h);
-
-    // 如果沒有重疊，直接不會撞到
-    if (left >= right || top >= bottom) return false;
-
-    const width = Math.floor(right - left);
-    const height = Math.floor(bottom - top);
-    if (width <= 0 || height <= 0) return false;
-
-    // 建立或共用的離屏 Canvas (用來只畫交集區域)
-    if (!window.hitCanvas) {
-        window.hitCanvas = document.createElement('canvas');
-        window.hitCtx = window.hitCanvas.getContext('2d', { willReadFrequently: true });
-    }
-    const hitCtx = window.hitCtx;
-    window.hitCanvas.width = width;
-    window.hitCanvas.height = height;
-
-    // 1. 畫出小鳥在該交集區的像素並取出
-    hitCtx.clearRect(0, 0, width, height);
-    hitCtx.save();
-    hitCtx.translate(-left, -top); // 確保座標基準對齊交集區左上角
-    hitCtx.translate(birdParams.x + birdParams.w / 2, birdParams.y + birdParams.h / 2);
-    hitCtx.rotate(birdParams.rotation);
-    hitCtx.drawImage(birdParams.img, -birdParams.w / 2, -birdParams.h / 2, birdParams.w, birdParams.h);
-    hitCtx.restore();
-    
-    let data1;
-    let data2;
-    try {
-        data1 = hitCtx.getImageData(0, 0, width, height).data;
-        
-        // 2. 畫出在此交集區的水管像素並取出
-        hitCtx.clearRect(0, 0, width, height);
-        hitCtx.save();
-        hitCtx.translate(-left, -top);
-        hitCtx.drawImage(pipeParams.img, pipeParams.x, pipeParams.y, pipeParams.w, pipeParams.h);
-        hitCtx.restore();
-
-        data2 = hitCtx.getImageData(0, 0, width, height).data;
-    } catch(e) { 
-        // 若圖片因為直接開啟檔案 (file://) 等跨域安全限制導致無法讀取像素，則退回以前的方塊式碰撞
-        return true; 
-    }
-
-    // 3. 像素比對：設定透明度閥值 (大於 50 視為實體，避免邊緣半透明光暈造成過度判定)
-    for (let i = 3; i < data1.length; i += 4) {
-        if (data1[i] > 50 && data2[i] > 50) {
-            return true;
+// --- 多邊形碰撞檢測 (SAT) ---
+function getAxes(poly) {
+    let axes = [];
+    for (let i = 0; i < poly.length; i++) {
+        let p1 = poly[i];
+        let p2 = poly[(i + 1) % poly.length];
+        let edge = { x: p2.x - p1.x, y: p2.y - p1.y };
+        let normal = { x: -edge.y, y: edge.x };
+        // normalize
+        let len = Math.sqrt(normal.x * normal.x + normal.y * normal.y);
+        if (len !== 0) {
+            axes.push({ x: normal.x / len, y: normal.y / len });
         }
     }
+    return axes;
+}
 
-    return false;
+function projectPoly(poly, axis) {
+    let min = (poly[0].x * axis.x + poly[0].y * axis.y);
+    let max = min;
+    for (let i = 1; i < poly.length; i++) {
+        let p = poly[i].x * axis.x + poly[i].y * axis.y;
+        if (p < min) min = p;
+        if (p > max) max = p;
+    }
+    return { min, max };
+}
+
+function isPolygonCollision(poly1, poly2) {
+    let axes = [...getAxes(poly1), ...getAxes(poly2)];
+    for (let i = 0; i < axes.length; i++) {
+        let proj1 = projectPoly(poly1, axes[i]);
+        let proj2 = projectPoly(poly2, axes[i]);
+        // overlap check
+        if (proj1.max < proj2.min || proj2.max < proj1.min) {
+            return false; // found a gap, no collision
+        }
+    }
+    return true; // no gaps found
+}
+
+// 根據物體參數生成多邊形形狀
+function createBirdPolygon(bird) {
+    const cx = bird.x + bird.width / 2;
+    const cy = bird.y + bird.height / 2;
+    const w = bird.width * 0.8; // 稍微縮小碰撞框避免過於苛刻
+    const h = bird.height * 0.8;
+    const rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, bird.velocity * 0.1));
+    
+    // 計算旋轉後的四個頂點
+    const corners = [
+        { x: -w/2, y: -h/2 }, { x: w/2, y: -h/2 },
+        { x: w/2, y: h/2 }, { x: -w/2, y: h/2 }
+    ];
+    return corners.map(p => ({
+        x: cx + p.x * Math.cos(rotation) - p.y * Math.sin(rotation),
+        y: cy + p.x * Math.sin(rotation) + p.y * Math.cos(rotation)
+    }));
+}
+
+function createPipePolygon(pipe, drawX, drawY, drawW, drawH) {
+    // 預設縮小一點點當作通融空間
+    const cx = drawX + drawW / 2;
+    const paddingX = drawW * 0.1;
+    const paddingY = drawH * 0.1;
+    const minX = drawX + paddingX;
+    const maxX = drawX + drawW - paddingX;
+    const minY = drawY + paddingY;
+    const maxY = drawY + drawH - paddingY;
+
+    if (pipe.shape === 'diamond') {
+        // 菱形
+        return [
+            { x: cx, y: minY },
+            { x: maxX, y: drawY + drawH / 2 },
+            { x: cx, y: maxY },
+            { x: minX, y: drawY + drawH / 2 }
+        ];
+    } else {
+        // 三角形 (如果是上下顛倒則需要調整尖端)
+        if (pipe.type === 'top') {
+            // 上方的水管，尖頭朝下？ 或平平的朝下？
+            // 假設是正三角形往上長或往往下長的尖頭
+            // 我們做一個底邊在上面，尖端在下方的三角形
+            return [
+                { x: minX, y: minY },
+                { x: maxX, y: minY },
+                { x: cx, y: maxY }
+            ];
+        } else if (pipe.type === 'bottom' || pipe.type === 'middle') {
+            // 底邊在下方，尖端在上方
+            return [
+                { x: cx, y: minY },
+                { x: maxX, y: maxY },
+                { x: minX, y: maxY }
+            ];
+        }
+    }
 }
 
 /**
@@ -174,39 +213,49 @@ function playGameLogic() {
             hY = p.y + (p.h - p.hitH) / 2; // 中間石頭判定框垂直置中
         }
 
-        // --- C. 除錯模式：繪製紅色碰撞範圍 (正式發布時可註解掉) ---
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(hX, hY, hW, hH); // 顯示石頭殺傷區
-
-        ctx.strokeStyle = "lime";
-        ctx.strokeRect(bird.x, bird.y, bird.width, bird.height);
-
-        // --- D. 碰撞偵測判定 ---
-        let birdRotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, bird.velocity * 0.1));
-
-        // 若圖片存在，使用像素級精確檢測 (Pixel-Perfect Collision)
-        if (birdImg.complete && birdImg.width > 0 && p.img.complete && p.img.width > 0) {
+        // --- C. 除錯模式：繪製紅色碰撞範圍 (多邊形) ---
+        let birdPoly = createBirdPolygon(bird);
+        let pipePoly = [];
+        
+        // 取得 pipePoly 並畫出來
+        if (p.shape && p.img.complete && p.img.width > 0) {
             const imgRatio = p.img.width / p.img.height;
             const drawH = p.h;
             const drawW = drawH * imgRatio;
             const drawX = p.x + (p.width - drawW) / 2;
             const drawY = p.y;
-            
-            // 先使用原來的 AABB (紅框與綠框) 進行廣泛檢測，如果連框框都沒重疊，就絕不可能撞到
-            let isHit = false;
-            if (bird.x < hX + hW && bird.x + bird.width > hX &&
-                bird.y < hY + hH && bird.y + bird.height > hY) {
-                // 如果外框重疊了，才進入消耗效能的像素檢測
-                isHit = isPixelCollision(
-                    { x: bird.x, y: bird.y, w: bird.width, h: bird.height, rotation: birdRotation, img: birdImg },
-                    { x: drawX, y: drawY, w: drawW, h: drawH, img: p.img }
-                );
-            }
+            pipePoly = createPipePolygon(p, drawX, drawY, drawW, drawH);
 
-            if (isHit) gameState = 'gameover';
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pipePoly[0].x, pipePoly[0].y);
+            for(let j=1; j<pipePoly.length; j++) ctx.lineTo(pipePoly[j].x, pipePoly[j].y);
+            ctx.closePath();
+            ctx.stroke();
         } else {
-            // AABB 備用判定 (當圖片未準備好時)
+            // 圖片未載入時，安全 fallback 到方塊舊版
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(hX, hY, hW, hH);
+        }
+
+        ctx.strokeStyle = "lime";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(birdPoly[0].x, birdPoly[0].y);
+        for(let j=1; j<birdPoly.length; j++) ctx.lineTo(birdPoly[j].x, birdPoly[j].y);
+        ctx.closePath();
+        ctx.stroke();
+
+        // --- D. 碰撞偵測判定 ---
+        if (pipePoly.length > 0) {
+            // Polygon SAT collision
+            if (isPolygonCollision(birdPoly, pipePoly)) {
+                gameState = 'gameover';
+            }
+        } else {
+            // AABB 備用判定
             if (bird.x < hX + hW && bird.x + bird.width > hX &&
                 bird.y < hY + hH && bird.y + bird.height > hY) {
                 gameState = 'gameover';
@@ -219,11 +268,6 @@ function playGameLogic() {
             // 為了不重複計分，我們只在通過「上石頭」或「中間石頭」時加分
             if (p.type === 'top' || p.type === 'middle') {
                 score++;
-                // 每 10 分切換下一個章節
-                if (score % 10 === 0) {
-                    currentChapter = (currentChapter % 3) + 1; 
-                    loadChapterAssets(currentChapter);
-                }
             }
         }
         
@@ -277,5 +321,5 @@ window.addEventListener('mousedown', (e) => {
 
 // --- 啟動遊戲 ---
 resizeCanvas();
-loadChapterAssets(1);
+loadChapterAssets();
 gameLoop();
