@@ -74,6 +74,7 @@ function resetGame() {
     initBird(isMobile);
     pipes = [];
     frame = 0;
+    window.nextPipeSpawnFrame = undefined; // 重置水管生成倒數
 }
 
 // --- 核心修改：產生水管與碰撞參數 ---

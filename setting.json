@@ -4,6 +4,8 @@
         "speedMultiplier": 0.005,      
         "bgSpeed": 1.5,                
         "pipeSpawnFrames": 60,         
+        "minPipeSpawnFrames": 30,
+        "pipeSpawnAcceleration": 1,
         "pipeWidthRatio": 0.08,        
         "pipeMinHeightRatio": 0.1,     
         "pipeMaxHeightRatio": 0.4,     

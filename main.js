@@ -178,7 +178,23 @@ function playGameLogic() {
 
     // 2. 每隔一定幀數產生一組新水管
     const settings = gameSettings[`ch${currentChapter}`];
-    if (frame % settings.pipeSpawnFrames === 0) createPipe();
+    
+    // 計算目前的生成間隔 (隨分數增加而變小，但有最小值保護)
+    let currentSpawnInterval = settings.pipeSpawnFrames - (score * (settings.pipeSpawnAcceleration || 0));
+    if (currentSpawnInterval < (settings.minPipeSpawnFrames || 30)) {
+        currentSpawnInterval = settings.minPipeSpawnFrames || 30;
+    }
+    
+    // 因為 currentSpawnInterval 可能不再是常數，當它變成 43、41 這種奇數時 % 很容易錯過
+    // 所以我們使用一個倒數計時的概念：
+    if (typeof window.nextPipeSpawnFrame === 'undefined') {
+        window.nextPipeSpawnFrame = frame + currentSpawnInterval;
+    }
+    
+    if (frame >= window.nextPipeSpawnFrame) {
+        createPipe();
+        window.nextPipeSpawnFrame = frame + currentSpawnInterval;
+    }
 
     // 3. 遍歷並處理所有水管
     for (let i = pipes.length - 1; i >= 0; i--) {
@@ -335,6 +351,8 @@ async function initGameSettings() {
                 "speedMultiplier": 0.005,
                 "bgSpeed": 1.5,
                 "pipeSpawnFrames": 60,
+                "minPipeSpawnFrames": 30,
+                "pipeSpawnAcceleration": 2,
                 "pipeWidthRatio": 0.08,
                 "pipeMinHeightRatio": 0.1,
                 "pipeMaxHeightRatio": 0.4,
