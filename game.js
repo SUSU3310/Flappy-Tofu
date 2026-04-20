@@ -5,15 +5,36 @@ let currentChapter = 1;
 const bgImg = new Image();
 const stoneImages = [new Image(), new Image(), new Image(), new Image()];
 let showTitleTimer = 0;
+const birdImg = new Image();
+birdImg.src = './assets/player.png'; // 請確保路徑正確
+const nextBgImg = new Image(); // 預備下一關的背景
+let isTransitioningBg = false; // 是否正在等待背景切換
+let currentStonePool = []; 
 
 function loadChapterAssets(chapter) {
     const path = `./assets/ch${chapter}/`;
     const bgUrl = `${path}background.png`;
-    bgImg.src = bgUrl;
+    
+    // 1. 背景處理：這會立刻換背景圖。
+    // 如果想要背景也平滑過渡，建議保留舊背景直到它滾動出螢幕（稍後討論）
+    if (gameState === 'play') {
+        // 如果正在遊戲中，將新背景載入到「備用」圖片
+        nextBgImg.src = bgUrl;
+        isTransitioningBg = true; 
+    } else {
+        // 初始狀態或重置時，直接換掉主背景
+        bgImg.src = bgUrl;
+    }
+    
     const blurBg = document.getElementById('blur-bg');
     if (blurBg) blurBg.style.backgroundImage = `url('${bgUrl}')`;
+
+    // 2. 關鍵修改：更新「當前資源池」，但不影響已經在畫面上的水管
+    currentStonePool = [];
     for (let i = 0; i < 4; i++) {
-        stoneImages[i].src = `${path}stone${i + 1}.png`;
+        const img = new Image();
+        img.src = `${path}stone${i + 1}.png`;
+        currentStonePool.push(img);
     }
     showTitleTimer = 100; 
 }
@@ -28,10 +49,24 @@ let bgOffset = 0;
 
 // --- 初始化小鳥 ---
 function initBird(isMobile = false) {
+    // 根據螢幕比例決定小鳥位置
     bird.x = isMobile ? canvas.width * 0.2 : canvas.width * 0.1;
     bird.y = canvas.height / 2;
-    bird.width = 40;
-    bird.height = 30;
+
+    // --- 調整小鳥大小與比例 ---
+    // 我們設定一個基礎高度，寬度則根據圖片原始比例計算
+    const baseHeight = isMobile ? canvas.height * 0.05 : 40; 
+    bird.height = baseHeight;
+    
+    // 如果圖片已載入，依比例設定寬度；否則暫設為與高度相同
+    if (birdImg.complete && birdImg.width > 0) {
+        const ratio = birdImg.width / birdImg.height;
+        bird.width = bird.height * ratio;
+    } else {
+        bird.width = bird.height * 1.2; // 預設比例
+    }
+
+    // 重力與跳躍力 (維持之前相對高度的設定)
     if (isMobile) {
         bird.gravity = canvas.height * 0.0005; 
         bird.lift = canvas.height * -0.01;
@@ -62,69 +97,92 @@ function createPipe() {
 
     const spawnType = Math.random() < 0.5 ? 0 : 1;
 
-    function getRandomImgFor(position) {
-        let pool = [0, 1, 2, 3];
-        if (position === 'top') pool = pool.filter(index => index !== 3);
-        else if (position === 'bottom') pool = pool.filter(index => index !== 1);
-        else if (position === 'middle') pool = pool.filter(index => index !== 1 && index !== 3);
-        return stoneImages[pool[Math.floor(Math.random() * pool.length)]];
+    // 內部輔助函式：根據位置從「當前的池子」選圖
+    function getImgFromPool(position) {
+        if (currentStonePool.length === 0) return null; // 防止池子還沒準備好
+
+        let indices = [0, 1, 2, 3];
+        if (position === 'top') indices = indices.filter(i => i !== 3);
+        else if (position === 'bottom') indices = indices.filter(i => i !== 1);
+        else if (position === 'middle') indices = indices.filter(i => i !== 1 && i !== 3);
+        
+        const idx = indices[Math.floor(Math.random() * indices.length)];
+        return currentStonePool[idx]; // 回傳圖片物件的「引用」
     }
 
     if (spawnType === 0) {
-        // --- 上下石頭模式 ---
-        const topImg = getRandomImgFor('top');
-        const bottomImg = getRandomImgFor('bottom');
         const topH = Math.random() * (maxH - minH) + minH;
+        const bottomH = canvas.height - (topH + gap);
         
+        // 抓取當下的圖片物件
+        const tImg = getImgFromPool('top');
+        const bImg = getImgFromPool('bottom');
+
         // 上石頭
         pipes.push({
             x: canvas.width, y: 0, width: pWidth, h: topH,
-            img: topImg, type: 'top', passed: false,
-            hitW: pWidth * 0.6, // 碰撞框寬度縮小
-            hitH: topH * 0.8    // 尖端判定縮小
+            img: tImg, // 綁定圖片
+            type: 'top', passed: false,
+            hitW: pWidth * 0.6, hitH: topH * 0.8
         });
 
         // 下石頭
-        const bottomH = canvas.height - (topH + gap);
         pipes.push({
             x: canvas.width, y: topH + gap, width: pWidth, h: bottomH,
-            img: bottomImg, type: 'bottom', passed: false,
-            hitW: pWidth * 0.6,
-            hitH: bottomH * 0.8,
-            hitYOffset: bottomH * 0.2 // 從底部往上移 20%
+            img: bImg, // 綁定圖片
+            type: 'bottom', passed: false,
+            hitW: pWidth * 0.6, hitH: bottomH * 0.8,
+            hitYOffset: bottomH * 0.2
         });
     } else {
-        // --- 中間石頭模式 ---
-        const middleImg = getRandomImgFor('middle');
+        // 中間石頭
+        const mImg = getImgFromPool('middle');
         const middleH = canvas.height * 0.2; 
         const middleY = Math.random() * (canvas.height - middleH - (canvas.height * 0.2)) + (canvas.height * 0.1);
 
         pipes.push({
             x: canvas.width, y: middleY, width: pWidth, h: middleH,
-            img: middleImg, type: 'middle', passed: false,
-            hitW: pWidth * 0.7, // 中間石頭通常比較圓，縮小一點點即可
-            hitH: middleH * 0.7
+            img: mImg, // 綁定圖片
+            type: 'middle', passed: false,
+            hitW: pWidth * 0.6, hitH: middleH * 0.8
         });
     }
 }
 
-// --- 背景與 UI 繪製 (保持原樣) ---
+// --- 背景與 UI 繪製  ---
 function drawBackground() {
     const bgScale = canvas.height / bgImg.height;
     const bgScaledWidth = bgImg.width * bgScale;
-    const numBgNeeded = Math.ceil(canvas.width / bgScaledWidth) + 1;
+    
     if (gameState === 'play') {
         bgOffset -= 1.5; 
-        if (bgOffset <= -bgScaledWidth) bgOffset = 0;
+        if (bgOffset <= -bgScaledWidth) {
+            bgOffset = 0;
+            // 當舊背景完全滾出螢幕的一輪後，正式替換
+            if (isTransitioningBg && nextBgImg.complete) {
+                bgImg.src = nextBgImg.src;
+                isTransitioningBg = false;
+            }
+        }
     }
+    
+    // 繪製邏輯
+    const numBgNeeded = Math.ceil(canvas.width / bgScaledWidth) + 1;
     for (let i = 0; i < numBgNeeded; i++) {
+        // 如果正在過渡，且這是新的一張圖，可以考慮更複雜的雙圖交替繪製
+        // 簡單做法：等下一輪循環再換圖，這樣視覺上會是「下一條背景」變色
         ctx.drawImage(bgImg, (i * bgScaledWidth) + bgOffset, 0, bgScaledWidth, canvas.height);
     }
 }
 
 function showStartScreen() {
-    ctx.fillStyle = "yellow";
-    ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+    if (birdImg.complete && birdImg.width > 0) {
+        ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+    } else {
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+    }
+
     ctx.fillStyle = "white";
     ctx.font = "bold 30px Arial";
     ctx.textAlign = "center";

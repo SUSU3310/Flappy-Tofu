@@ -44,6 +44,67 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
+// --- 像素級碰撞檢測 ---
+function isPixelCollision(birdParams, pipeParams) {
+    // 取得兩者的 AABB (框框) 交集區域 (Broad Phase)
+    const left = Math.max(birdParams.x, pipeParams.x);
+    const right = Math.min(birdParams.x + birdParams.w, pipeParams.x + pipeParams.w);
+    const top = Math.max(birdParams.y, pipeParams.y);
+    const bottom = Math.min(birdParams.y + birdParams.h, pipeParams.y + pipeParams.h);
+
+    // 如果沒有重疊，直接不會撞到
+    if (left >= right || top >= bottom) return false;
+
+    const width = Math.floor(right - left);
+    const height = Math.floor(bottom - top);
+    if (width <= 0 || height <= 0) return false;
+
+    // 建立或共用的離屏 Canvas (用來只畫交集區域)
+    if (!window.hitCanvas) {
+        window.hitCanvas = document.createElement('canvas');
+        window.hitCtx = window.hitCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    const hitCtx = window.hitCtx;
+    window.hitCanvas.width = width;
+    window.hitCanvas.height = height;
+
+    // 1. 畫出小鳥在該交集區的像素並取出
+    hitCtx.clearRect(0, 0, width, height);
+    hitCtx.save();
+    hitCtx.translate(-left, -top); // 確保座標基準對齊交集區左上角
+    hitCtx.translate(birdParams.x + birdParams.w / 2, birdParams.y + birdParams.h / 2);
+    hitCtx.rotate(birdParams.rotation);
+    hitCtx.drawImage(birdParams.img, -birdParams.w / 2, -birdParams.h / 2, birdParams.w, birdParams.h);
+    hitCtx.restore();
+    
+    let data1;
+    let data2;
+    try {
+        data1 = hitCtx.getImageData(0, 0, width, height).data;
+        
+        // 2. 畫出在此交集區的水管像素並取出
+        hitCtx.clearRect(0, 0, width, height);
+        hitCtx.save();
+        hitCtx.translate(-left, -top);
+        hitCtx.drawImage(pipeParams.img, pipeParams.x, pipeParams.y, pipeParams.w, pipeParams.h);
+        hitCtx.restore();
+
+        data2 = hitCtx.getImageData(0, 0, width, height).data;
+    } catch(e) { 
+        // 若圖片因為直接開啟檔案 (file://) 等跨域安全限制導致無法讀取像素，則退回以前的方塊式碰撞
+        return true; 
+    }
+
+    // 3. 像素比對：設定透明度閥值 (大於 50 視為實體，避免邊緣半透明光暈造成過度判定)
+    for (let i = 3; i < data1.length; i += 4) {
+        if (data1[i] > 50 && data2[i] > 50) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /**
  * 遊戲核心邏輯驅動
  * 負責：物理運動、繪製、碰撞偵測、計分、場景切換
@@ -53,9 +114,28 @@ function playGameLogic() {
     bird.velocity += bird.gravity;
     bird.y += bird.velocity;
     
-    // 繪製小鳥本體 (黃色豆腐)
-    ctx.fillStyle = "yellow";
-    ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+    // --- 修改：繪製圖片玩家替代黃色方塊 ---
+    if (birdImg.complete && birdImg.width > 0) {
+        ctx.save(); // 保存目前的畫布狀態（座標系、旋轉等）
+        
+        // 將畫布的原點移動到小鳥的中心點
+        ctx.translate(bird.x + bird.width / 2, bird.y + bird.height / 2);
+        
+        // 根據垂直速度計算旋轉角度
+        // bird.velocity 為正（掉落時）會順時針轉，為負（跳躍時）會逆時針轉
+        // Math.PI / 4 大約是 45 度，限制最大轉動範圍
+        let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, bird.velocity * 0.1));
+        ctx.rotate(rotation);
+        
+        // 繪製圖片：因為原點已經移到中心，所以圖片要往回偏置寬高的一半
+        ctx.drawImage(birdImg, -bird.width / 2, -bird.height / 2, bird.width, bird.height);
+        
+        ctx.restore(); // 恢復畫布狀態，避免影響後續水管的繪製
+    } else {
+        // 如果圖片還沒載入，暫時畫黃色方塊
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+    }
 
     // 2. 每隔 90 幀產生一組新水管
     if (frame % 90 === 0) createPipe();
@@ -72,18 +152,10 @@ function playGameLogic() {
             const img = p.img;
             const imgRatio = img.width / img.height;
 
-            if (p.type === 'middle') {
-                // 中間石頭：使用 Contain 模式 (不裁切，置中縮放)
-                const scale = Math.min(p.width / img.width, p.h / img.height);
-                const drawW = img.width * scale;
-                const drawH = img.height * scale;
-                ctx.drawImage(img, p.x + (p.width - drawW) / 2, p.y + (p.h - drawH) / 2, drawW, drawH);
-            } else {
-                // 上下石頭：使用 Height Fit 模式 (高度對齊，寬度等比例，水平置中)
-                const drawH = p.h;
-                const drawW = drawH * imgRatio;
-                ctx.drawImage(img, p.x + (p.width - drawW) / 2, p.y, drawW, drawH);
-            }
+            // 統一使用 Height Fit 模式 (高度對齊，寬度等比例，水平置中)
+            const drawH = p.h;
+            const drawW = drawH * imgRatio;
+            ctx.drawImage(img, p.x + (p.width - drawW) / 2, p.y, drawW, drawH);
         } else {
             // 圖片未載入時的備案
             ctx.fillStyle = "gray";
@@ -108,12 +180,37 @@ function playGameLogic() {
         ctx.strokeRect(hX, hY, hW, hH); // 顯示石頭殺傷區
 
         ctx.strokeStyle = "lime";
-        ctx.strokeRect(bird.x, bird.y, bird.width, bird.height); // 顯示小鳥判定區
+        ctx.strokeRect(bird.x, bird.y, bird.width, bird.height);
 
         // --- D. 碰撞偵測判定 ---
-        if (bird.x < hX + hW && bird.x + bird.width > hX &&
-            bird.y < hY + hH && bird.y + bird.height > hY) {
-            gameState = 'gameover';
+        let birdRotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, bird.velocity * 0.1));
+
+        // 若圖片存在，使用像素級精確檢測 (Pixel-Perfect Collision)
+        if (birdImg.complete && birdImg.width > 0 && p.img.complete && p.img.width > 0) {
+            const imgRatio = p.img.width / p.img.height;
+            const drawH = p.h;
+            const drawW = drawH * imgRatio;
+            const drawX = p.x + (p.width - drawW) / 2;
+            const drawY = p.y;
+            
+            // 先使用原來的 AABB (紅框與綠框) 進行廣泛檢測，如果連框框都沒重疊，就絕不可能撞到
+            let isHit = false;
+            if (bird.x < hX + hW && bird.x + bird.width > hX &&
+                bird.y < hY + hH && bird.y + bird.height > hY) {
+                // 如果外框重疊了，才進入消耗效能的像素檢測
+                isHit = isPixelCollision(
+                    { x: bird.x, y: bird.y, w: bird.width, h: bird.height, rotation: birdRotation, img: birdImg },
+                    { x: drawX, y: drawY, w: drawW, h: drawH, img: p.img }
+                );
+            }
+
+            if (isHit) gameState = 'gameover';
+        } else {
+            // AABB 備用判定 (當圖片未準備好時)
+            if (bird.x < hX + hW && bird.x + bird.width > hX &&
+                bird.y < hY + hH && bird.y + bird.height > hY) {
+                gameState = 'gameover';
+            }
         }
 
         // --- E. 計分與關卡切換 ---
