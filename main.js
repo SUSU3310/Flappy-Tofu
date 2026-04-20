@@ -1,4 +1,4 @@
-// --- 視窗縮放處理 ---
+﻿// --- 視窗縮放處理 ---
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -125,9 +125,8 @@ function createPipePolygon(pipe, drawX, drawY, drawW, drawH) {
     } else {
         // 三角形 (如果是上下顛倒則需要調整尖端)
         if (pipe.type === 'top') {
-            // 上方的水管，尖頭朝下？ 或平平的朝下？
-            // 假設是正三角形往上長或往往下長的尖頭
-            // 我們做一個底邊在上面，尖端在下方的三角形
+            // 上方的水管，尖頭朝下或平平的朝下
+            // 做一個底邊在上面，尖端在下方的三角形
             return [
                 { x: minX, y: minY },
                 { x: maxX, y: minY },
@@ -161,8 +160,6 @@ function playGameLogic() {
         ctx.translate(bird.x + bird.width / 2, bird.y + bird.height / 2);
         
         // 根據垂直速度計算旋轉角度
-        // bird.velocity 為正（掉落時）會順時針轉，為負（跳躍時）會逆時針轉
-        // Math.PI / 4 大約是 45 度，限制最大轉動範圍
         let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, bird.velocity * 0.1));
         ctx.rotate(rotation);
         
@@ -177,7 +174,7 @@ function playGameLogic() {
     }
 
     // 2. 每隔一定幀數產生一組新水管
-    const settings = gameSettings[`ch${currentChapter}`];
+    const settings = gameSettings['ch' + currentChapter];
     
     // 計算目前的生成間隔 (隨分數增加而變小，但有最小值保護)
     let currentSpawnInterval = settings.pipeSpawnFrames - (score * (settings.pipeSpawnAcceleration || 0));
@@ -185,8 +182,7 @@ function playGameLogic() {
         currentSpawnInterval = settings.minPipeSpawnFrames || 30;
     }
     
-    // 因為 currentSpawnInterval 可能不再是常數，當它變成 43、41 這種奇數時 % 很容易錯過
-    // 所以我們使用一個倒數計時的概念：
+    // 倒數計時法：
     if (typeof window.nextPipeSpawnFrame === 'undefined') {
         window.nextPipeSpawnFrame = frame + currentSpawnInterval;
     }
@@ -201,7 +197,7 @@ function playGameLogic() {
         let p = pipes[i];
         
         // 移動水管：根據畫面寬度與設定的速度比例移動
-        p.x -= (canvas.width * settings.speedMultiplier); 
+        p.x -= (canvas.width * (settings.speedMultiplier / 1000)); 
 
         // --- A. 視覺繪製：等比例不拉伸 ---
         if (p.img.complete && p.img.width > 0) {
@@ -328,14 +324,19 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('touchstart', (e) => { 
     if (e.target.tagName !== 'A' && !e.target.closest('a')) {
         // 在手機上開始後，防止點擊造成頁面捲動
+        // 唯獨在設定面板中不要擋掉預設輸入行為
         if (gameState === 'play') e.preventDefault(); 
+        if (e.target.closest('#settings-modal') || e.target.closest('#settings-btn')) return;
         handleAction(e); 
     }
 }, { passive: false });
 
 window.addEventListener('mousedown', (e) => {
+    if (e.target.closest('#settings-modal') || e.target.closest('#settings-btn')) return;
     handleAction(e);
 });
+
+let originalGameSettings = null; // 備份初始設定
 
 // --- 啟動遊戲 ---
 async function initGameSettings() {
@@ -348,24 +349,161 @@ async function initGameSettings() {
         // 提供預設設定以防萬一
         gameSettings = {
             "ch1": {
-                "speedMultiplier": 0.005,
-                "bgSpeed": 1.5,
-                "pipeSpawnFrames": 60,
+                "speedMultiplier": 5,      
+                "bgSpeed": 15,                
+                "pipeSpawnFrames": 60,         
                 "minPipeSpawnFrames": 30,
-                "pipeSpawnAcceleration": 2,
-                "pipeWidthRatio": 0.08,
-                "pipeMinHeightRatio": 0.1,
-                "pipeMaxHeightRatio": 0.4,
-                "middlePipeHeightRatio": 0.2,
-                "mobile": { "gravityRatio": 0.0005, "liftRatio": -0.01, "pipeGapRatio": 0.22 },
-                "desktop": { "gravityRatio": 0.0006, "liftRatio": -0.012, "pipeGapRatio": 0.25 }
+                "pipeSpawnAcceleration": 1,
+                "pipeWidthRatio": 8,        
+                "pipeMinHeightRatio": 10,     
+                "pipeMaxHeightRatio": 40,     
+                "middlePipeHeightRatio": 20,  
+                "mobile": {
+                    "gravityRatio": 5,   
+                    "liftRatio": 10,       
+                    "pipeGapRatio": 22      
+                },
+                "desktop": {
+                    "gravityRatio": 6,   
+                    "liftRatio": 12,      
+                    "pipeGapRatio": 25       
+                }
             }
         };
     }
     
+    // 深拷貝一份做為「回復預設」的備份
+    originalGameSettings = JSON.parse(JSON.stringify(gameSettings));
+
     resizeCanvas();
     loadChapterAssets();
+    setupSettingsUI(); // 初始化 UI 事件
     gameLoop();
+}
+
+function setupSettingsUI() {
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsForm = document.getElementById('settings-form');
+    const closeBtn = document.getElementById('close-settings-btn');
+    const saveBtn = document.getElementById('save-settings-btn');
+    const resetBtn = document.getElementById('reset-settings-btn');
+
+    const labelMap = {
+        "speedMultiplier": "水管移動速度",
+        "bgSpeed": "背景移動速度",
+        "pipeSpawnFrames": "基礎生成間距(幀)",
+        "minPipeSpawnFrames": "最小生成間距(幀)",
+        "pipeSpawnAcceleration": "間距加速縮減(幀/分)",
+        "pipeWidthRatio": "水管寬度比例",
+        "pipeMinHeightRatio": "水管最小高度比例",
+        "pipeMaxHeightRatio": "水管最大高度比例",
+        "middlePipeHeightRatio": "中間水管高度比例",
+        "gravityRatio": "重力係數",
+        "liftRatio": "跳躍係數",
+        "pipeGapRatio": "上下水管間距"
+    };
+
+    // 取得深度值的輔助涵式
+    function getDeepValue(obj, path) {
+        return path.split('.').reduce((o, i) => o ? o[i] : undefined, obj);
+    }
+
+    // 重新繪製設定表單
+    function renderForm() {
+        const isMobileDevice = window.innerWidth < 768 || ('ontouchstart' in window);
+        const platform = isMobileDevice ? 'mobile' : 'desktop';
+
+        const formSchema = [
+            {
+                title: "生成設定",
+                keys: [
+                    `${platform}.pipeGapRatio`,
+                    "pipeSpawnFrames",
+                    "minPipeSpawnFrames",
+                    "pipeSpawnAcceleration",
+                    "pipeWidthRatio",
+                    "pipeMinHeightRatio",
+                    "pipeMaxHeightRatio",
+                    "middlePipeHeightRatio"
+                ]
+            },
+            {
+                title: "玩家設定",
+                keys: [
+                    `${platform}.gravityRatio`,
+                    `${platform}.liftRatio`,
+                    "speedMultiplier",
+                    "bgSpeed"
+                ]
+            }
+        ];
+
+        let html = '';
+        formSchema.forEach(group => {
+            html += '<div class="setting-group" style="margin-top:15px; margin-bottom:8px; font-weight:bold; font-size:16px; color:#fff; border-bottom: 2px dashed rgba(255,255,255,0.4); padding-bottom: 5px;">' + group.title + '</div>';
+            group.keys.forEach(path => {
+                const keyName = path.split('.').pop();
+                const displayLabel = labelMap[keyName] || keyName;
+                const val = getDeepValue(gameSettings.ch1, path);
+
+                html += '<div class="setting-row"><label for="' + path.replace('.', '_') + '">' + displayLabel + '</label><input type="number" step="any" id="' + path.replace('.', '_') + '" data-key="' + path + '" value="' + val + '" /></div>';
+            });
+        });
+
+        settingsForm.innerHTML = html;
+    }
+
+    settingsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        renderForm(); // 確保打開時顯示最新狀態
+        settingsModal.classList.remove('hidden');
+    });
+
+    closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        settingsModal.classList.add('hidden');
+    });
+
+    // 點擊背景關閉
+    settingsModal.addEventListener('mousedown', (e) => {
+        if (e.target === settingsModal) {
+            settingsModal.classList.add('hidden');
+        }
+    });
+
+    // 深度賦值套用設定的輔助涵式 (因為支援巢狀如 mobile.gravityRatio)
+    function setDeepValue(obj, path, value) {
+        let keys = path.split('.');
+        let lastKey = keys.pop();
+        for (let i = 0; i < keys.length; i++) {
+            obj = obj[keys[i]];
+        }
+        obj[lastKey] = Number(value);
+    }
+
+    // 儲存套件
+    saveBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const inputs = settingsForm.querySelectorAll('input[data-key]');
+        inputs.forEach(input => {
+            let path = input.getAttribute('data-key');
+            setDeepValue(gameSettings.ch1, path, input.value);
+        });
+        
+        settingsModal.classList.add('hidden');
+        // 保存後重置遊戲以應用最新的所有設定
+        resetGame();
+        gameState = 'start';
+    });
+
+    // 回復預設
+    resetBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // 從深拷貝的備份中完全還原
+        gameSettings = JSON.parse(JSON.stringify(originalGameSettings));
+        renderForm(); // 重新整理輸入框數字
+    });
 }
 
 initGameSettings();

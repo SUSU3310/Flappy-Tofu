@@ -12,10 +12,25 @@
         <div id="author-links">
             <a href="https://www.twitch.tv/susu3310" target="_blank" class="twitch-pic-link susu">
                 <img src="./assets/susu.png" alt="Susu Twitch" class="author-pic">
-            </td>
+            </a>
             <a href="https://www.twitch.tv/momohatofu" target="_blank" class="twitch-pic-link momo">
                 <img src="./assets/tofu.png" alt="Momo Twitch" class="author-pic">
-            </td>
+            </a>
+        </div>
+        <!-- 設定按鈕 -->
+        <button id="settings-btn">設定參數</button>
+    </div>
+
+    <!-- 設定懸浮窗 -->
+    <div id="settings-modal" class="hidden">
+        <div class="modal-content">
+            <h2>自訂參數</h2>
+            <div id="settings-form"></div>
+            <div class="modal-actions">
+                <button id="save-settings-btn">儲存套用</button>
+                <button id="reset-settings-btn">回復預設</button>
+                <button id="close-settings-btn">關閉</button>
+            </div>
         </div>
     </div>
 

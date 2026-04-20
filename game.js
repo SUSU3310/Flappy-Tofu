@@ -58,12 +58,12 @@ function initBird(isMobile = false) {
         bird.width = bird.height * 1.2; // 預設比例
     }
 
-    // 重力與跳躍力 (從設定檔讀取比例)
+    // 重力與跳躍力 (從設定檔讀取比例，並轉換為實際比例常數)
     const settings = gameSettings[`ch${currentChapter}`];
     const platform = isMobile ? settings.mobile : settings.desktop;
 
-    bird.gravity = canvas.height * platform.gravityRatio;
-    bird.lift = canvas.height * platform.liftRatio;
+    bird.gravity = canvas.height * (platform.gravityRatio / 10000); // 介面上是5、6，還原為0.0005
+    bird.lift = canvas.height * (-platform.liftRatio / 1000); // 介面上是10、12，還原為-0.01
     bird.velocity = 0;
 }
 
@@ -82,10 +82,10 @@ function createPipe() {
     const settings = gameSettings[`ch${currentChapter}`];
     const platform = window.innerWidth < 768 || ('ontouchstart' in window) ? settings.mobile : settings.desktop;
 
-    const pWidth = canvas.height * settings.pipeWidthRatio; 
-    const minH = canvas.height * settings.pipeMinHeightRatio; 
-    const maxH = canvas.height * settings.pipeMaxHeightRatio; 
-    const gap = canvas.height * platform.pipeGapRatio; 
+    const pWidth = canvas.height * (settings.pipeWidthRatio / 100); 
+    const minH = canvas.height * (settings.pipeMinHeightRatio / 100); 
+    const maxH = canvas.height * (settings.pipeMaxHeightRatio / 100); 
+    const gap = canvas.height * (platform.pipeGapRatio / 100); 
     
     // 設定一個足夠在畫面外的生成點 (避免圖片寬度超過 hitbox 導致憑空飛入)
     const startX = canvas.width + canvas.height * 0.3;
@@ -133,7 +133,7 @@ function createPipe() {
     } else {
         // 中間石頭
         const mImgObj = getImgFromPool('middle');
-        const middleH = canvas.height * settings.middlePipeHeightRatio; 
+        const middleH = canvas.height * (settings.middlePipeHeightRatio / 100); 
         const middleY = Math.random() * (canvas.height - middleH - (canvas.height * 0.2)) + (canvas.height * 0.1);
 
         pipes.push({
@@ -153,7 +153,7 @@ function drawBackground() {
     
     if (gameState === 'play') {
         const settings = gameSettings[`ch${currentChapter}`];
-        bgOffset -= settings.bgSpeed; 
+        bgOffset -= (settings.bgSpeed / 10); 
         if (bgOffset <= -bgScaledWidth) {
             bgOffset = 0;
         }

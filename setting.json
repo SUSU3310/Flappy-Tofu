@@ -1,24 +1,24 @@
 
 {
     "ch1": {
-        "speedMultiplier": 0.005,      
-        "bgSpeed": 1.5,                
+        "speedMultiplier": 5,      
+        "bgSpeed": 15,                
         "pipeSpawnFrames": 60,         
         "minPipeSpawnFrames": 30,
         "pipeSpawnAcceleration": 1,
-        "pipeWidthRatio": 0.08,        
-        "pipeMinHeightRatio": 0.1,     
-        "pipeMaxHeightRatio": 0.4,     
-        "middlePipeHeightRatio": 0.2,  
+        "pipeWidthRatio": 8,        
+        "pipeMinHeightRatio": 10,     
+        "pipeMaxHeightRatio": 40,     
+        "middlePipeHeightRatio": 20,  
         "mobile": {
-            "gravityRatio": 0.0005,   
-            "liftRatio": -0.01,       
-            "pipeGapRatio": 0.22      
+            "gravityRatio": 5,   
+            "liftRatio": 10,       
+            "pipeGapRatio": 22      
         },
         "desktop": {
-            "gravityRatio": 0.0006,   
-            "liftRatio": -0.012,      
-            "pipeGapRatio": 0.25       
+            "gravityRatio": 6,   
+            "liftRatio": 12,      
+            "pipeGapRatio": 25       
         }
     }
 }
